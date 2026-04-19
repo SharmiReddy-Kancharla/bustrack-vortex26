@@ -1,4 +1,4 @@
-# 🚌 BusTrack Trichy
+# 🚌 RouteIQ Trichy - Intelligent Bus Tracking
 *Real-time Bus Tracking System for Tiruchirappalli*
 Built for ThinkRoot x Vortex '26 Hackathon
 
@@ -13,7 +13,7 @@ into bus locations, causing uncertainty, missed buses, and
 long uninformed waits — especially on low-connectivity networks.
 
 ## 💡 Solution
-BusTrack Trichy is a resilient, real-time bus tracking web app 
+RouteIq Trichy is a resilient, real-time bus tracking web app 
 that works across all network conditions — from full 4G to EDGE 
 to complete offline — using adaptive updates, ML-based ETA 
 prediction, and GPS interpolation.
