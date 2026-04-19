@@ -1,0 +1,1272 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>BusTrack — Trichy Resilient Transport System</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+/* ── DARK THEME (default) ── */
+:root,[data-theme="dark"]{
+  --bg:#0a0e17;--surface:#111827;--surface2:#1a2235;--surface3:#1e2a40;
+  --border:#1f2d45;--border2:#2a3a55;
+  --text:#e2e8f4;--text2:#b0bdd6;--muted:#6b7a99;
+  --accent:#4f8ef7;--green:#22c55e;--yellow:#eab308;--red:#ef4444;--teal:#06b6d4;--purple:#a855f7;
+  --map-filter:invert(1) hue-rotate(180deg) brightness(0.82) saturate(0.85);
+  --map-bg:#0a0e17;--chip-bg:rgba(10,14,23,.92);
+  --mono:'Space Mono',monospace;--body:'DM Sans',sans-serif;
+}
+/* ── LIGHT THEME ── */
+[data-theme="light"]{
+  --bg:#f0f4fb;--surface:#ffffff;--surface2:#f3f6fc;--surface3:#e8eef8;
+  --border:#d1daf0;--border2:#bfcde8;
+  --text:#1a2035;--text2:#3a4a6b;--muted:#8494b8;
+  --map-filter:none;--map-bg:#e8eef8;--chip-bg:rgba(255,255,255,.96);
+}
+
+html,body{height:100%;width:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--body);font-size:13px;transition:background .25s,color .25s}
+#app{display:grid;grid-template-columns:320px 1fr;height:100vh;width:100vw;overflow:hidden}
+
+/* ══ SIDEBAR ══ */
+#sidebar{display:flex;flex-direction:column;background:var(--surface);border-right:1px solid var(--border);overflow:hidden;height:100vh;transition:transform .3s cubic-bezier(.4,0,.2,1),background .25s;z-index:1200}
+#sidebar-scroll{flex:1;overflow-y:auto;display:flex;flex-direction:column}
+::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+/* Header */
+#header{padding:12px 14px 10px;border-bottom:1px solid var(--border);background:linear-gradient(135deg,var(--surface),var(--surface2));flex-shrink:0}
+.logo-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.logo-icon{width:34px;height:34px;background:linear-gradient(135deg,var(--accent),var(--teal));border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;box-shadow:0 0 18px #4f8ef744}
+.logo-title{font-family:var(--mono);font-weight:700;font-size:13px;color:var(--text)}
+.logo-sub{font-size:10px;color:var(--muted);font-family:var(--mono);margin-top:1px}
+.header-actions{display:flex;gap:5px;align-items:center;margin-left:auto}
+.icon-btn{width:28px;height:28px;border-radius:7px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;transition:all .15s;flex-shrink:0}
+.icon-btn:hover{border-color:var(--accent);color:var(--text);background:var(--surface3)}
+#close-sidebar-btn{display:none}
+
+/* Search */
+.search-wrap{position:relative}
+.search-input{width:100%;padding:7px 10px 7px 30px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:var(--body);font-size:12px;outline:none;transition:border-color .15s}
+.search-input:focus{border-color:var(--accent)}
+.search-input::placeholder{color:var(--muted)}
+.search-icon{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:12px;pointer-events:none}
+#search-results{display:none;margin-top:6px;display:flex;flex-direction:column;gap:4px}
+.search-hit{padding:5px 8px;border-radius:7px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;transition:all .12s;display:flex;align-items:center;gap:8px}
+.search-hit:hover{border-color:var(--accent);background:var(--surface3)}
+.search-hit-icon{font-size:13px;flex-shrink:0}
+.search-hit-name{font-size:11px;font-weight:500;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.search-hit-sub{font-family:var(--mono);font-size:9px;color:var(--muted)}
+
+/* Accordion sections */
+.accordion{border-bottom:1px solid var(--border);flex-shrink:0}
+.accordion-header{display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer;user-select:none;transition:background .12s}
+.accordion-header:hover{background:var(--surface2)}
+.accordion-title{font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:.1em;flex:1;font-weight:700}
+.accordion-badge{font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:8px;font-weight:700}
+.accordion-chevron{font-size:9px;color:var(--muted);transition:transform .2s;flex-shrink:0}
+.accordion.collapsed .accordion-chevron{transform:rotate(-90deg)}
+.accordion-body{overflow:hidden;transition:max-height .25s ease;padding:0 12px 10px}
+.accordion.collapsed .accordion-body{max-height:0!important;padding-bottom:0}
+
+/* Feature rows */
+.feat-row{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;background:var(--surface2);border:1px solid var(--border);margin-bottom:5px}
+.feat-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.feat-label{font-size:10px;color:var(--text);flex:1;font-weight:500}
+.feat-value{font-family:var(--mono);font-size:10px;font-weight:700}
+
+/* Network panel */
+.net-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.net-status-row{display:flex;align-items:center;gap:7px}
+.net-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.net-label{font-family:var(--mono);font-size:11px;font-weight:700}
+.rtt-chip{font-family:var(--mono);font-size:10px;color:var(--muted);background:var(--surface2);padding:2px 7px;border-radius:10px;border:1px solid var(--border)}
+.bw-bar-wrap{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.bw-bar-bg{flex:1;height:5px;background:var(--surface2);border-radius:3px;overflow:hidden}
+.bw-bar-fill{height:100%;border-radius:3px;transition:width .5s ease,background .5s ease}
+.bw-label{font-family:var(--mono);font-size:9px;color:var(--muted);width:50px;text-align:right}
+.tier-box{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:7px;margin-bottom:8px;transition:all .4s}
+.tier-icon{font-size:14px}
+.tier-name{font-family:var(--mono);font-size:10px;font-weight:700}
+.tier-desc{font-size:10px;color:var(--muted);font-family:var(--mono)}
+.sim-row{display:flex;gap:5px}
+.sim-btn{flex:1;padding:5px 0;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:var(--mono);font-size:9px;cursor:pointer;transition:all .15s;font-weight:700;letter-spacing:.05em}
+.sim-btn:hover{color:var(--text);border-color:var(--accent)}
+.sim-btn.active{color:var(--accent);border-color:var(--accent);background:#4f8ef712}
+#buffer-box{display:none;padding:6px 10px;border-radius:7px;background:#ef444410;border:1px solid #ef444430;margin-top:6px}
+.buffer-title{font-family:var(--mono);font-size:9px;color:#ef4444;font-weight:700;margin-bottom:2px}
+.buffer-bar-bg{height:4px;background:var(--surface2);border-radius:2px;overflow:hidden;margin-top:4px}
+.buffer-bar-fill{height:100%;background:#ef4444;border-radius:2px;transition:width .3s}
+.buffer-text{font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:3px}
+
+/* User location panel */
+.user-panel-header{display:flex;align-items:center;gap:7px;margin-bottom:8px}
+.user-gps-dot{width:10px;height:10px;border-radius:50%;background:#4f8ef7;box-shadow:0 0 8px #4f8ef7;flex-shrink:0}
+.user-panel-title{font-family:var(--mono);font-size:10px;font-weight:700;color:#4f8ef7;flex:1}
+.user-acc-badge{font-family:var(--mono);font-size:9px;color:var(--muted);background:var(--surface2);padding:2px 6px;border-radius:8px;border:1px solid var(--border)}
+.stop-dist-badge{font-family:var(--mono);font-size:9px;font-weight:700}
+
+/* Route filter */
+#route-filter{display:flex;gap:5px;padding:8px 12px;flex-wrap:wrap}
+.route-btn{padding:3px 9px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:var(--mono);font-size:9px;cursor:pointer;transition:all .15s;font-weight:700}
+
+/* Bus list */
+#bus-list{flex:1;padding:4px 12px 12px;display:flex;flex-direction:column;gap:7px}
+.bus-card{border:1px solid var(--border);border-radius:10px;padding:9px 11px;cursor:pointer;transition:all .2s;position:relative}
+.bus-card:hover{background:var(--surface2)}
+.bus-card.selected{background:var(--surface2)}
+.bus-card.nearest-bus::before{content:'★ NEAREST';position:absolute;top:-1px;right:8px;font-family:var(--mono);font-size:7px;font-weight:700;color:#4f8ef7;background:var(--surface);padding:1px 5px;border-radius:0 0 5px 5px;border:1px solid #4f8ef730;border-top:none}
+.bus-header{display:flex;align-items:center;gap:9px}
+.bus-icon-wrap{width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.bus-name-row{font-weight:600;font-size:12px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.bus-route-tag{font-size:9px;font-family:var(--mono);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.status-badge{font-size:8px;font-family:var(--mono);padding:1px 5px;border-radius:8px;font-weight:700}
+.speed-num{font-family:var(--mono);font-size:13px;font-weight:700;text-align:right}
+.speed-unit{font-size:8px;color:var(--muted);font-family:var(--mono)}
+.dist-from-user{font-family:var(--mono);font-size:9px;text-align:right;margin-top:2px;font-weight:700}
+.expand-body{margin-top:9px;border-top:1px solid var(--border);padding-top:9px}
+.expand-label{font-size:9px;color:var(--muted);font-family:var(--mono);margin-bottom:6px;letter-spacing:.08em}
+.stop-row{display:flex;align-items:center;gap:7px;padding:3px 5px;border-radius:5px;border:1px solid transparent;margin-bottom:3px}
+.stop-dot{width:5px;height:5px;border-radius:50%;background:var(--border);flex-shrink:0}
+.stop-name{flex:1;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stop-eta-val{font-family:var(--mono);font-size:10px;font-weight:700}
+.eta-conf{font-family:var(--mono);font-size:8px;color:var(--muted)}
+.coord-row{margin-top:6px;font-family:var(--mono);font-size:8px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap}
+
+/* Countdown timer */
+.countdown-box{margin-top:8px;padding:8px 10px;border-radius:8px;background:linear-gradient(135deg,#4f8ef710,#06b6d410);border:1px solid #4f8ef730;display:flex;align-items:center;gap:10px}
+.countdown-label{font-family:var(--mono);font-size:9px;color:var(--muted);flex:1}
+.countdown-time{font-family:var(--mono);font-size:18px;font-weight:700;color:var(--accent);letter-spacing:.05em}
+.countdown-time.urgent{color:var(--green);animation:pulse-glow 1s ease infinite}
+.countdown-time.arriving{color:var(--yellow)}
+
+/* Footer */
+#footer{padding:8px 14px;border-top:1px solid var(--border);display:flex;justify-content:space-between;flex-shrink:0;background:var(--surface)}
+.footer-txt{font-family:var(--mono);font-size:9px;color:var(--muted)}
+
+/* ══ MAP ══ */
+#map-wrap{position:relative;overflow:hidden}
+#map{width:100%;height:100%}
+.leaflet-container{background:var(--map-bg)!important}
+.leaflet-tile-pane{filter:var(--map-filter)}
+.leaflet-control-zoom a{background:var(--surface2)!important;color:var(--text)!important;border-color:var(--border)!important}
+.leaflet-control-attribution{background:rgba(10,14,23,.85)!important;color:var(--muted)!important;font-size:8px}
+[data-theme="light"] .leaflet-control-attribution{background:rgba(255,255,255,.85)!important}
+
+/* Map overlay */
+#map-topbar{position:absolute;top:12px;left:12px;right:12px;z-index:999;display:flex;gap:6px;pointer-events:none;flex-wrap:wrap}
+.map-chip{background:var(--chip-bg);border:1px solid var(--border2);border-radius:8px;padding:5px 10px;display:flex;align-items:center;gap:6px;backdrop-filter:blur(10px);pointer-events:all;white-space:nowrap}
+.chip-dot{width:6px;height:6px;border-radius:50%}
+.chip-label{font-family:var(--mono);font-size:10px;font-weight:700}
+.chip-val{font-family:var(--mono);font-size:10px;color:var(--muted)}
+.chip-btn{cursor:pointer;transition:all .15s;user-select:none}
+.chip-btn:hover{border-color:var(--accent)}
+.chip-btn.active-chip{border-color:var(--green)!important}
+
+/* Mobile FAB */
+#map-fab{display:none;position:absolute;bottom:20px;right:20px;z-index:998;width:48px;height:48px;border-radius:50%;background:var(--accent);border:none;color:white;font-size:20px;cursor:pointer;box-shadow:0 4px 20px #4f8ef744;align-items:center;justify-content:center;transition:transform .15s}
+#map-fab:hover{transform:scale(1.08)}
+
+/* Sidebar overlay (mobile) */
+#sidebar-overlay{display:none;position:absolute;inset:0;background:rgba(0,0,0,.5);z-index:1100;backdrop-filter:blur(2px)}
+
+/* Legend */
+#map-legend{position:absolute;bottom:16px;left:16px;z-index:999;background:var(--chip-bg);border:1px solid var(--border2);border-radius:10px;padding:10px 14px;backdrop-filter:blur(10px)}
+.legend-title{font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:.08em;margin-bottom:7px}
+.legend-row{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.legend-arrow{width:22px;height:10px;display:flex;align-items:center;gap:2px}
+.legend-line{flex:1;height:3px;border-radius:2px}
+.legend-arrowhead{width:0;height:0;border-top:4px solid transparent;border-bottom:4px solid transparent;flex-shrink:0}
+.legend-label{font-size:10px;color:var(--text)}
+
+/* Sparse GPS */
+#sparse-box{position:absolute;bottom:16px;right:16px;z-index:999;background:var(--chip-bg);border:1px solid var(--border2);border-radius:10px;padding:10px 14px;backdrop-filter:blur(10px);display:none;max-width:190px}
+.sparse-title{font-family:var(--mono);font-size:9px;color:var(--yellow);margin-bottom:5px;font-weight:700}
+.sparse-row{font-size:10px;color:var(--muted);margin-bottom:3px}
+
+/* Popup */
+.dp .leaflet-popup-content-wrapper{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:10px;box-shadow:0 10px 40px rgba(0,0,0,.6)}
+.dp .leaflet-popup-tip{background:var(--surface)}
+.dp .leaflet-popup-content{margin:10px 14px;font-family:'DM Sans',sans-serif;font-size:12px}
+
+/* Locate btn states */
+.locate-btn{cursor:pointer;transition:all .2s}
+.locate-btn:hover{border-color:#4f8ef7!important;background:#4f8ef715!important}
+.locate-btn.locating{border-color:#4f8ef7!important;background:#4f8ef715!important;animation:blink 1s ease infinite}
+.locate-btn.located{border-color:#22c55e!important;background:#22c55e10!important}
+
+/* Animations */
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+@keyframes fadein{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse-glow{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes user-pulse{0%,100%{transform:scale(1);opacity:.5}50%{transform:scale(2.4);opacity:0}}
+
+/* ══ MOBILE RESPONSIVE ══ */
+@media(max-width:680px){
+  #app{grid-template-columns:1fr}
+  #sidebar{position:absolute;top:0;left:0;width:min(320px,90vw);transform:translateX(-110%);box-shadow:4px 0 30px rgba(0,0,0,.4)}
+  #sidebar.open{transform:translateX(0)}
+  #sidebar-overlay.show{display:block}
+  #close-sidebar-btn{display:flex}
+  #map-fab{display:flex}
+  #map-topbar{top:10px;left:10px;right:10px;gap:4px}
+  .map-chip{padding:4px 8px}
+  .chip-label{font-size:9px}
+  .map-chip.hide-mobile{display:none}
+  #map-legend{bottom:76px}
+  #sparse-box{bottom:76px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- ══════════ SIDEBAR ══════════ -->
+<aside id="sidebar">
+  <div id="header">
+    <div class="logo-row">
+      <div class="logo-icon">🚌</div>
+      <div style="flex:1;min-width:0">
+        <div class="logo-title">BusTrack · Trichy</div>
+        <div class="logo-sub">Tiruchirappalli Resilient Transit</div>
+      </div>
+      <div class="header-actions">
+        <button class="icon-btn" id="theme-btn" onclick="toggleTheme()" title="Toggle light/dark mode">☀️</button>
+        <button class="icon-btn" id="close-sidebar-btn" onclick="closeSidebar()" title="Close">✕</button>
+      </div>
+    </div>
+    <!-- Search -->
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input class="search-input" id="search-input" type="text" placeholder="Search buses or stops…" oninput="onSearch(this.value)" autocomplete="off"/>
+    </div>
+    <div id="search-results" style="margin-top:6px"></div>
+  </div>
+
+  <div id="sidebar-scroll">
+
+    <!-- ── SYSTEM FEATURES (accordion) ── -->
+    <div class="accordion" id="acc-features">
+      <div class="accordion-header" onclick="toggleAccordion('features')">
+        <span class="accordion-title">SYSTEM FEATURES</span>
+        <span class="accordion-badge" id="badge-features" style="color:var(--green);background:#22c55e15;border:1px solid #22c55e30">5 ACTIVE</span>
+        <span class="accordion-chevron">▾</span>
+      </div>
+      <div class="accordion-body" id="body-features">
+        <div class="feat-row" id="feat-adaptive">
+          <div class="feat-dot" style="background:var(--green)"></div>
+          <span class="feat-label">Adaptive Update Frequency</span>
+          <span class="feat-value" id="feat-adaptive-val" style="color:var(--green)">1s · FULL</span>
+        </div>
+        <div class="feat-row" id="feat-sparse">
+          <div class="feat-dot" style="background:var(--green)"></div>
+          <span class="feat-label">Sparse GPS Handling</span>
+          <span class="feat-value" id="feat-sparse-val" style="color:var(--green)">NORMAL</span>
+        </div>
+        <div class="feat-row" id="feat-interp">
+          <div class="feat-dot" style="background:var(--green)"></div>
+          <span class="feat-label">Path Interpolation</span>
+          <span class="feat-value" id="feat-interp-val" style="color:var(--green)">ACTIVE</span>
+        </div>
+        <div class="feat-row" id="feat-ml">
+          <div class="feat-dot" style="background:var(--green)"></div>
+          <span class="feat-label">ML ETA Prediction</span>
+          <span class="feat-value" id="feat-ml-val" style="color:var(--green)">GBR ✓</span>
+        </div>
+        <div class="feat-row" id="feat-buffer">
+          <div class="feat-dot" style="background:var(--muted)"></div>
+          <span class="feat-label">Store-and-Forward Buffer</span>
+          <span class="feat-value" id="feat-buffer-val" style="color:var(--muted)">STANDBY</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── MY LIVE LOCATION (accordion, hidden until located) ── -->
+    <div class="accordion" id="acc-location" style="display:none">
+      <div class="accordion-header" onclick="toggleAccordion('location')">
+        <div class="user-gps-dot" style="width:8px;height:8px;border-radius:50%;background:#4f8ef7;box-shadow:0 0 6px #4f8ef7;flex-shrink:0"></div>
+        <span class="accordion-title" style="color:#4f8ef7;margin-left:4px">MY LIVE LOCATION</span>
+        <span class="user-acc-badge accordion-badge" id="user-acc-text" style="color:var(--muted);background:var(--surface2);border:1px solid var(--border)">acquiring…</span>
+        <span class="accordion-chevron">▾</span>
+      </div>
+      <div class="accordion-body" id="body-location">
+        <div id="user-panel-content"></div>
+      </div>
+    </div>
+
+    <!-- ── NETWORK (accordion) ── -->
+    <div class="accordion" id="acc-network">
+      <div class="accordion-header" onclick="toggleAccordion('network')">
+        <span class="accordion-title">NETWORK SIMULATION</span>
+        <span class="net-dot accordion-badge" id="net-dot-badge" style="width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green)"></span>
+        <span class="accordion-chevron">▾</span>
+      </div>
+      <div class="accordion-body" id="body-network">
+        <div class="net-header">
+          <div class="net-status-row">
+            <div class="net-dot" id="net-dot" style="background:var(--green);box-shadow:0 0 7px var(--green)"></div>
+            <span class="net-label" id="net-label" style="color:var(--green)">Live · High Bandwidth</span>
+          </div>
+          <span class="rtt-chip" id="rtt-chip">RTT 14ms</span>
+        </div>
+        <div class="bw-bar-wrap">
+          <div class="bw-bar-bg"><div class="bw-bar-fill" id="bw-fill" style="width:92%;background:var(--green)"></div></div>
+          <span class="bw-label" id="bw-text">92% BW</span>
+        </div>
+        <div class="tier-box" id="tier-box" style="background:#22c55e10;border:1px solid #22c55e30">
+          <span class="tier-icon" id="tier-icon">📶</span>
+          <div>
+            <div class="tier-name" id="tier-name" style="color:var(--green)">Full Quality Mode</div>
+            <div class="tier-desc" id="tier-desc">1s interval · Full payload · All features on</div>
+          </div>
+        </div>
+        <div class="sim-row">
+          <button class="sim-btn active" id="btn-high"    onclick="setNetwork('high')">FULL</button>
+          <button class="sim-btn" id="btn-medium"  onclick="setNetwork('medium')">3G</button>
+          <button class="sim-btn" id="btn-low"     onclick="setNetwork('low')">EDGE</button>
+          <button class="sim-btn" id="btn-offline" onclick="setNetwork('offline')">DROP</button>
+        </div>
+        <div id="buffer-box">
+          <div class="buffer-title">⚡ STORE-AND-FORWARD ACTIVE</div>
+          <div style="font-size:9px;color:var(--muted);font-family:var(--mono)" id="buffer-count">0 events buffered</div>
+          <div class="buffer-bar-bg"><div class="buffer-bar-fill" id="buffer-bar" style="width:0%"></div></div>
+          <div class="buffer-text" id="buffer-text">Waiting to reconnect…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ROUTE FILTER ── -->
+    <div id="route-filter"></div>
+
+    <!-- ── BUS LIST ── -->
+    <div id="bus-list"></div>
+  </div>
+
+  <div id="footer">
+    <span class="footer-txt" id="bus-count">5 buses active</span>
+    <span class="footer-txt" id="footer-time">3 routes · Trichy</span>
+  </div>
+</aside>
+
+<!-- ══════════ MAP ══════════ -->
+<div id="map-wrap">
+  <div id="map"></div>
+  <div id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+  <!-- Map topbar -->
+  <div id="map-topbar">
+    <div class="map-chip">
+      <div class="chip-dot" id="chip-dot" style="background:var(--green);box-shadow:0 0 6px var(--green)"></div>
+      <span class="chip-label" id="chip-bw" style="color:var(--green)">HIGH BW</span>
+      <span class="chip-val" id="chip-rtt">14ms</span>
+    </div>
+    <div class="map-chip hide-mobile">
+      <span style="font-size:11px">⏱</span>
+      <span class="chip-label" style="color:var(--text)">Update</span>
+      <span class="chip-val" id="chip-interval">every 1s</span>
+    </div>
+    <div class="map-chip hide-mobile">
+      <span style="font-size:11px">🧠</span>
+      <span class="chip-label" style="color:var(--purple)">ML ETA</span>
+      <span class="chip-val" id="chip-ml">GBR Active</span>
+    </div>
+    <div class="map-chip chip-btn hide-mobile" id="trail-chip" onclick="toggleTrail()" title="Toggle interpolation trail">
+      <span style="font-size:11px">〰️</span>
+      <span class="chip-label" style="color:var(--teal)">Trail</span>
+      <span class="chip-val" id="chip-trail">ON</span>
+    </div>
+    <div class="map-chip chip-btn hide-mobile" id="follow-chip" onclick="toggleFollow()" title="Auto-follow selected bus">
+      <span style="font-size:11px">🎯</span>
+      <span class="chip-label" id="follow-label" style="color:var(--muted)">Follow</span>
+      <span class="chip-val" id="chip-follow">OFF</span>
+    </div>
+    <div style="flex:1"></div>
+    <div class="map-chip locate-btn" id="locate-btn" onclick="toggleLocate()" title="Show my live location">
+      <span style="font-size:11px">📍</span>
+      <span class="chip-label" id="locate-label">Locate Me</span>
+    </div>
+    <div class="map-chip hide-mobile">
+      <span style="font-size:11px">🗺</span>
+      <span class="chip-val">Tiruchirappalli, TN</span>
+    </div>
+  </div>
+
+  <!-- Legend with direction arrows -->
+  <div id="map-legend">
+    <div class="legend-title">ROUTES</div>
+    <div class="legend-row">
+      <div class="legend-arrow">
+        <div class="legend-line" style="background:#FF6B6B"></div>
+        <div class="legend-arrowhead" style="border-left:6px solid #FF6B6B"></div>
+      </div>
+      <span class="legend-label">Rockfort Loop</span>
+    </div>
+    <div class="legend-row">
+      <div class="legend-arrow">
+        <div class="legend-line" style="background:#06b6d4"></div>
+        <div class="legend-arrowhead" style="border-left:6px solid #06b6d4"></div>
+      </div>
+      <span class="legend-label">Srirangam Express</span>
+    </div>
+    <div class="legend-row" style="margin-bottom:0">
+      <div class="legend-arrow">
+        <div class="legend-line" style="background:#eab308"></div>
+        <div class="legend-arrowhead" style="border-left:6px solid #eab308"></div>
+      </div>
+      <span class="legend-label">NIT College Shuttle</span>
+    </div>
+  </div>
+
+  <!-- Sparse GPS -->
+  <div id="sparse-box">
+    <div class="sparse-title">⚠ SPARSE GPS MODE</div>
+    <div class="sparse-row">GPS pings: <b id="sparse-ping">10s interval</b></div>
+    <div class="sparse-row">Interpolating between points</div>
+    <div class="sparse-row">Last known positions preserved</div>
+  </div>
+
+  <!-- Mobile FAB -->
+  <button id="map-fab" onclick="openSidebar()" title="Open menu">☰</button>
+</div>
+
+</div><!-- #app -->
+
+<script>
+// ══════════════════════════════════════════════════════
+// 1. DATA
+// ══════════════════════════════════════════════════════
+const ROUTES = [
+  { id:'R1', name:'Rockfort Loop', color:'#FF6B6B', stops:[
+    {id:'S01',name:'Central Bus Stand',    lat:10.7905,lng:78.7047},
+    {id:'S02',name:'Rockfort Temple',      lat:10.8169,lng:78.6926},
+    {id:'S03',name:'Chatram Bus Stand',    lat:10.8190,lng:78.6867},
+    {id:'S04',name:'Woraiyur Junction',    lat:10.8220,lng:78.7120},
+    {id:'S05',name:'Ponmalai',             lat:10.8150,lng:78.7350},
+    {id:'S06',name:'Golden Rock',          lat:10.8290,lng:78.7280},
+    {id:'S07',name:'Trichy Junction',      lat:10.7919,lng:78.7004},
+  ]},
+  { id:'R2', name:'Srirangam Express', color:'#06b6d4', stops:[
+    {id:'S08',name:'Trichy Junction',      lat:10.7919,lng:78.7004},
+    {id:'S09',name:'Cantonment',           lat:10.8008,lng:78.7083},
+    {id:'S10',name:'Thillai Nagar',        lat:10.8108,lng:78.6975},
+    {id:'S11',name:'Srirangam Roundabout', lat:10.8450,lng:78.6940},
+    {id:'S12',name:'Srirangam Temple',     lat:10.8636,lng:78.6930},
+  ]},
+  { id:'R3', name:'NIT College Shuttle', color:'#eab308', stops:[
+    {id:'S13',name:'Central Bus Stand',    lat:10.7905,lng:78.7047},
+    {id:'S14',name:'KK Nagar',             lat:10.7748,lng:78.7272},
+    {id:'S15',name:'Ariyamangalam',        lat:10.7580,lng:78.7430},
+    {id:'S16',name:'Thuvakudi',            lat:10.7650,lng:78.7950},
+    {id:'S17',name:'NIT Trichy Gate',      lat:10.7627,lng:78.8132},
+    {id:'S18',name:'NIT Campus Center',    lat:10.7650,lng:78.8160},
+  ]},
+]
+const BUSES_INIT = [
+  {id:'B1',name:'TN45 AB 1234',route_id:'R1',stop_idx:0,progress:0.00,sf:1.00},
+  {id:'B2',name:'TN45 CD 5678',route_id:'R1',stop_idx:3,progress:0.55,sf:0.90},
+  {id:'B3',name:'TN45 EF 9012',route_id:'R2',stop_idx:0,progress:0.00,sf:1.10},
+  {id:'B4',name:'TN45 GH 3456',route_id:'R2',stop_idx:2,progress:0.30,sf:0.95},
+  {id:'B5',name:'TN45 IJ 7890',route_id:'R3',stop_idx:0,progress:0.00,sf:1.05},
+]
+const routeMap = Object.fromEntries(ROUTES.map(r=>[r.id,r]))
+const allStopsFlat = ROUTES.flatMap(r=>r.stops.map(s=>({...s,routeId:r.id,routeName:r.name,routeColor:r.color})))
+
+// ══════════════════════════════════════════════════════
+// 2. STATE
+// ══════════════════════════════════════════════════════
+let buses={}, selectedBus=null, selectedRoute=null
+let networkMode='high', bufferCount=0, bufferEvents=[]
+let showTrail=true, trailLayers={}
+let autoFollow=false
+let isDark = true
+// Accordion collapse state
+const accCollapsed = {features:false, location:false, network:false}
+// User location
+let userLocation=null, userMarker=null, userAccCircle=null, locating=false, watchId=null
+// Countdown timers per bus (seconds remaining)
+const countdownState = {}
+
+// ══════════════════════════════════════════════════════
+// 3. THEME TOGGLE
+// ══════════════════════════════════════════════════════
+function toggleTheme(){
+  isDark = !isDark
+  document.documentElement.setAttribute('data-theme', isDark?'dark':'light')
+  document.getElementById('theme-btn').textContent = isDark ? '☀️' : '🌙'
+  // Update leaflet map background
+  document.querySelector('.leaflet-container').style.background = isDark ? '#0a0e17' : '#e8eef8'
+}
+
+// ══════════════════════════════════════════════════════
+// 4. MOBILE SIDEBAR
+// ══════════════════════════════════════════════════════
+function openSidebar(){
+  document.getElementById('sidebar').classList.add('open')
+  document.getElementById('sidebar-overlay').classList.add('show')
+}
+function closeSidebar(){
+  document.getElementById('sidebar').classList.remove('open')
+  document.getElementById('sidebar-overlay').classList.remove('show')
+}
+
+// ══════════════════════════════════════════════════════
+// 5. ACCORDION
+// ══════════════════════════════════════════════════════
+function toggleAccordion(id){
+  accCollapsed[id] = !accCollapsed[id]
+  const el = document.getElementById('acc-'+id)
+  const body = document.getElementById('body-'+id)
+  if(!el || !body) return
+  if(accCollapsed[id]){
+    body.style.maxHeight = '0'
+    el.classList.add('collapsed')
+  } else {
+    body.style.maxHeight = body.scrollHeight+'px'
+    el.classList.remove('collapsed')
+  }
+}
+function expandAccordion(id){
+  accCollapsed[id] = false
+  const el = document.getElementById('acc-'+id)
+  const body = document.getElementById('body-'+id)
+  if(!el || !body) return
+  body.style.maxHeight = body.scrollHeight+'px'
+  el.classList.remove('collapsed')
+}
+// Init accordion max-heights after DOM ready
+function initAccordions(){
+  ['features','location','network'].forEach(id=>{
+    const body = document.getElementById('body-'+id)
+    if(body) body.style.maxHeight = body.scrollHeight+'px'
+  })
+}
+
+// ══════════════════════════════════════════════════════
+// 6. SEARCH
+// ══════════════════════════════════════════════════════
+let searchQuery = ''
+function onSearch(q){
+  searchQuery = q.trim().toLowerCase()
+  const el = document.getElementById('search-results')
+  if(!searchQuery){ el.style.display='none'; buildBusList(); return }
+  el.style.display='flex'
+
+  const busHits = Object.values(buses).filter(b=>
+    b.name.toLowerCase().includes(searchQuery) ||
+    (routeMap[b.route_id]?.name||'').toLowerCase().includes(searchQuery)
+  )
+  const stopHits = allStopsFlat.filter(s=>
+    s.name.toLowerCase().includes(searchQuery) ||
+    s.routeName.toLowerCase().includes(searchQuery)
+  ).slice(0,4)
+
+  let html = ''
+  busHits.forEach(b=>{
+    const c = routeMap[b.route_id]?.color||'#4f8ef7'
+    html += `<div class="search-hit" onclick="selectBus('${b.id}');clearSearch()">
+      <span class="search-hit-icon">🚌</span>
+      <span class="search-hit-name">${b.name}</span>
+      <span class="search-hit-sub" style="color:${c}">${routeMap[b.route_id]?.name||''}</span>
+    </div>`
+  })
+  stopHits.forEach(s=>{
+    html += `<div class="search-hit" onclick="panToStop(${s.lat},${s.lng});clearSearch()">
+      <span class="search-hit-icon">🚏</span>
+      <span class="search-hit-name">${s.name}</span>
+      <span class="search-hit-sub" style="color:${s.routeColor}">${s.routeName}</span>
+    </div>`
+  })
+  if(!html) html = `<div style="padding:8px;font-family:var(--mono);font-size:9px;color:var(--muted);text-align:center">No results for "${q}"</div>`
+  el.innerHTML = html
+}
+function clearSearch(){
+  document.getElementById('search-input').value=''
+  document.getElementById('search-results').style.display='none'
+  searchQuery=''
+  buildBusList()
+}
+function panToStop(lat,lng){
+  map.panTo([lat,lng],{animate:true,duration:.8})
+  closeSidebar()
+}
+
+// ══════════════════════════════════════════════════════
+// 7. GEO HELPERS
+// ══════════════════════════════════════════════════════
+function haversine(lat1,lng1,lat2,lng2){
+  const R=6371,p1=lat1*Math.PI/180,p2=lat2*Math.PI/180
+  const dp=(lat2-lat1)*Math.PI/180,dl=(lng2-lng1)*Math.PI/180
+  const a=Math.sin(dp/2)**2+Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))
+}
+function lerp(a,b,t){return a+(b-a)*t}
+function easeInOut(t){return t<.5?2*t*t:-1+(4-2*t)*t}
+function bearing(lat1,lng1,lat2,lng2){
+  const dl=(lng2-lng1)*Math.PI/180
+  const y=Math.sin(dl)*Math.cos(lat2*Math.PI/180)
+  const x=Math.cos(lat1*Math.PI/180)*Math.sin(lat2*Math.PI/180)
+    -Math.sin(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.cos(dl)
+  return(Math.atan2(y,x)*180/Math.PI+360)%360
+}
+function midpoint(lat1,lng1,lat2,lng2){return{lat:(lat1+lat2)/2,lng:(lng1+lng2)/2}}
+function fmtDist(km){return km<1?Math.round(km*1000)+'m':km.toFixed(1)+'km'}
+function fmtCountdown(secs){
+  if(secs<=0)return'00:00'
+  const m=Math.floor(secs/60),s=Math.round(secs%60)
+  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
+}
+
+// ══════════════════════════════════════════════════════
+// 8. ML ETA PREDICTOR
+// ══════════════════════════════════════════════════════
+function mlETA(distKm, speedKmh, stopsAhead){
+  const h=new Date().getHours()
+  const isPeak=(h>=8&&h<=10)||(h>=17&&h<=19)
+  const travelMin=(distKm/Math.max(speedKmh,1))*60
+  const stopDelay=stopsAhead*0.45
+  const peakMul=isPeak?1+(0.15+Math.random()*0.25):1.0
+  const noise=(Math.random()-.5)*0.5
+  const netPenalty=networkMode==='low'?1.2:networkMode==='medium'?1.08:1.0
+  const eta=Math.max(0.3,(travelMin*peakMul+stopDelay+noise)*netPenalty)
+  const conf=networkMode==='high'?92+Math.round(Math.random()*6)
+    :networkMode==='medium'?78+Math.round(Math.random()*10)
+    :networkMode==='low'?58+Math.round(Math.random()*14)
+    :40+Math.round(Math.random()*15)
+  return{eta,conf}
+}
+
+// ══════════════════════════════════════════════════════
+// 9. BUS SIMULATOR
+// ══════════════════════════════════════════════════════
+const SPEED_DEG=0.000040
+function initBuses(){
+  BUSES_INIT.forEach(cfg=>{
+    const route=routeMap[cfg.route_id],stops=route.stops,n=stops.length
+    const si=cfg.stop_idx,si1=(si+1)%n
+    const lat=lerp(stops[si].lat,stops[si1].lat,cfg.progress)
+    const lng=lerp(stops[si].lng,stops[si1].lng,cfg.progress)
+    buses[cfg.id]={
+      id:cfg.id,name:cfg.name,route_id:cfg.route_id,
+      stop_idx:si,progress:cfg.progress,
+      lat,lng,speed:22*cfg.sf,heading:0,
+      status:'moving',at_stop:null,sf:cfg.sf,dwell:0,
+      lastGpsLat:lat,lastGpsLng:lng,lastGpsTs:performance.now(),
+      trail:[{lat,lng}],
+    }
+    countdownState[cfg.id]={secs:0,stopName:''}
+  })
+}
+function tickBus(bus,dt){
+  const route=routeMap[bus.route_id],stops=route.stops,n=stops.length
+  if(bus.dwell>0){bus.dwell-=dt;bus.status='at_stop';bus.speed=0;if(bus.dwell<=0){bus.dwell=0;bus.status='moving'}return}
+  bus.speed=22*bus.sf+(Math.random()-.5)*1.5
+  const si=bus.stop_idx,si1=(si+1)%n
+  const A=stops[si],B=stops[si1]
+  const segDeg=Math.hypot(B.lat-A.lat,B.lng-A.lng)
+  if(segDeg<1e-9){bus.progress=0;bus.stop_idx=si1;return}
+  const dp=(SPEED_DEG*bus.sf*dt)/segDeg
+  bus.progress+=dp
+  if(bus.progress>=1){
+    bus.progress=0;bus.stop_idx=si1
+    bus.lat=B.lat;bus.lng=B.lng
+    bus.at_stop=B.id;bus.status='at_stop';bus.speed=0;bus.dwell=7+Math.random()*10
+    bus.lastGpsLat=B.lat;bus.lastGpsLng=B.lng;bus.lastGpsTs=performance.now()
+    // Reset countdown for this bus
+    const nextIdx=(si1+1)%n
+    const dist=haversine(bus.lat,bus.lng,stops[nextIdx].lat,stops[nextIdx].lng)
+    countdownState[bus.id]={secs:(dist/22)*3600,stopName:stops[nextIdx].name}
+  } else {
+    bus.lat=lerp(A.lat,B.lat,bus.progress)
+    bus.lng=lerp(A.lng,B.lng,bus.progress)
+    bus.heading=bearing(A.lat,A.lng,B.lat,B.lng)
+    bus.at_stop=null;bus.status='moving'
+    // Update countdown
+    const cs=countdownState[bus.id]
+    if(!cs.stopName) cs.stopName=B.name
+    cs.secs=Math.max(0,((1-bus.progress)*segDeg/SPEED_DEG)/bus.sf)
+    cs.stopName=B.name
+    const gpsInterval=networkMode==='high'?1:networkMode==='medium'?3:networkMode==='low'?10:15
+    if((performance.now()-bus.lastGpsTs)/1000>=gpsInterval){
+      bus.lastGpsLat=bus.lat;bus.lastGpsLng=bus.lng;bus.lastGpsTs=performance.now()
+      bus.trail.push({lat:bus.lat,lng:bus.lng})
+      if(bus.trail.length>12)bus.trail.shift()
+    }
+  }
+}
+let lastTick=performance.now()
+function simLoop(){
+  const now=performance.now(),dt=Math.min((now-lastTick)/1000,.1)
+  lastTick=now
+  if(networkMode!=='offline'){
+    Object.values(buses).forEach(b=>tickBus(b,dt))
+  } else {
+    bufferCount++
+    bufferEvents.push({ts:now,buses:Object.values(buses).map(b=>({id:b.id,lat:b.lat,lng:b.lng}))})
+    if(bufferEvents.length>300)bufferEvents.shift()
+  }
+  requestAnimationFrame(simLoop)
+}
+
+// ══════════════════════════════════════════════════════
+// 10. MAP SETUP
+// ══════════════════════════════════════════════════════
+const map=L.map('map',{center:[10.8100,78.7100],zoom:13,zoomControl:true})
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  attribution:'© OpenStreetMap contributors',maxZoom:19
+}).addTo(map)
+
+// ── Direction arrow helper ──
+const arrowMarkers=[]
+function arrowIcon(color,angleDeg){
+  return L.divIcon({
+    html:`<svg width="14" height="14" viewBox="0 0 14 14" style="transform:rotate(${angleDeg-90}deg);display:block">
+      <polygon points="7,0 14,12 7,9 0,12" fill="${color}" opacity="0.85"/>
+    </svg>`,
+    className:'',iconSize:[14,14],iconAnchor:[7,7]
+  })
+}
+
+// ── Route lines with direction arrows ──
+const routeLayers={}
+function drawRoutes(){
+  Object.values(routeLayers).forEach(ls=>ls.forEach(l=>{try{l.remove()}catch(e){}}))
+  arrowMarkers.forEach(m=>{try{m.remove()}catch(e){}})
+  arrowMarkers.length=0
+
+  ROUTES.forEach(route=>{
+    const vis=!selectedRoute||selectedRoute===route.id,ls=[]
+    const lls=route.stops.map(s=>[s.lat,s.lng])
+    ls.push(L.polyline(lls,{color:route.color,weight:vis?4:1.5,opacity:vis?.85:.2,dashArray:vis?null:'5 7'}).addTo(map))
+
+    // Direction arrows at each segment midpoint
+    if(vis){
+      for(let i=0;i<route.stops.length-1;i++){
+        const A=route.stops[i],B=route.stops[i+1]
+        const mid=midpoint(A.lat,A.lng,B.lat,B.lng)
+        const ang=bearing(A.lat,A.lng,B.lat,B.lng)
+        const am=L.marker([mid.lat,mid.lng],{icon:arrowIcon(route.color,ang),interactive:false}).addTo(map)
+        arrowMarkers.push(am)
+      }
+    }
+
+    // Stop markers
+    route.stops.forEach(stop=>{
+      const ic=L.divIcon({
+        html:`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14">
+          <circle cx="7" cy="7" r="5" fill="${route.color}" opacity="${vis?.9:.2}" stroke="white" stroke-width="1.5"/>
+        </svg>`,className:'',iconSize:[14,14],iconAnchor:[7,7]
+      })
+      const m=L.marker([stop.lat,stop.lng],{icon:ic}).addTo(map)
+      m.bindTooltip(`<b style="font-family:DM Sans,sans-serif;font-size:11px">${stop.name}</b><div style="font-size:9px;color:#6b7a99;font-family:Space Mono,monospace">${stop.id} · ${route.name}</div>`,{direction:'top',offset:[0,-6]})
+      ls.push(m)
+    })
+    routeLayers[route.id]=ls
+  })
+}
+
+// ── Bus markers ──
+const busMarkers={},animState={}
+function makeBusIcon(color,selected){
+  const sz=selected?44:34
+  const pulse=selected?`<circle cx="22" cy="22" r="19" fill="${color}22"><animate attributeName="r" values="15;25;15" dur="2s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.5;0;0.5" dur="2s" repeatCount="indefinite"/></circle>`:''
+  const ico=networkMode==='offline'?'💤':'🚌'
+  return L.divIcon({
+    html:`<svg xmlns="http://www.w3.org/2000/svg" width="${sz}" height="${sz}" viewBox="0 0 44 44">
+      ${pulse}
+      <circle cx="22" cy="22" r="${selected?18:14}" fill="${color}" opacity="0.18"/>
+      <circle cx="22" cy="22" r="${selected?13:10}" fill="${color}"/>
+      <text x="22" y="27" text-anchor="middle" font-size="12" font-family="DM Sans,sans-serif" fill="white" font-weight="700">${ico}</text>
+    </svg>`,
+    className:'',iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]
+  })
+}
+
+function drawTrail(busId,trail,color){
+  if(trailLayers[busId]){trailLayers[busId].forEach(l=>{try{l.remove()}catch(e){}});trailLayers[busId]=[]}
+  if(!showTrail||trail.length<2)return
+  trailLayers[busId]=[]
+  for(let i=1;i<trail.length;i++){
+    const t=i/trail.length
+    const seg=L.polyline([[trail[i-1].lat,trail[i-1].lng],[trail[i].lat,trail[i].lng]],{
+      color,weight:3,opacity:t*0.7,dashArray:'4 3'
+    }).addTo(map)
+    trailLayers[busId].push(seg)
+  }
+}
+
+function updateMarkers(){
+  // Detect overlapping buses (within ~100m) and offset
+  const busArr=Object.values(buses)
+  const offsets={}
+  busArr.forEach((b,i)=>{
+    busArr.forEach((b2,j)=>{
+      if(i>=j)return
+      if(haversine(b.lat,b.lng,b2.lat,b2.lng)<0.1){
+        offsets[b.id]=[0.0003,0]
+        offsets[b2.id]=[-0.0003,0]
+      }
+    })
+  })
+
+  busArr.forEach(bus=>{
+    const route=routeMap[bus.route_id],color=route?.color||'#4f8ef7'
+    const isSel=bus.id===selectedBus
+    const off=offsets[bus.id]||[0,0]
+    const dispLat=bus.lat+off[0],dispLng=bus.lng+off[1]
+
+    if(!busMarkers[bus.id]){
+      const m=L.marker([dispLat,dispLng],{icon:makeBusIcon(color,isSel),zIndexOffset:isSel?1000:0}).addTo(map)
+      m.on('click',()=>selectBus(bus.id))
+      busMarkers[bus.id]=m
+      animState[bus.id]={fromLat:dispLat,fromLng:dispLng,toLat:dispLat,toLng:dispLng,t:1,start:0}
+      trailLayers[bus.id]=[]
+    }
+    const m=busMarkers[bus.id]
+    m.setIcon(makeBusIcon(color,isSel))
+    m.setZIndexOffset(isSel?1000:0)
+
+    const as=animState[bus.id]
+    if(Math.abs(dispLat-as.toLat)>1e-8||Math.abs(dispLng-as.toLng)>1e-8){
+      const cur=m.getLatLng()
+      as.fromLat=cur.lat;as.fromLng=cur.lng
+      as.toLat=dispLat;as.toLng=dispLng
+      as.t=0;as.start=performance.now()
+    }
+    drawTrail(bus.id,bus.trail||[],color)
+
+    if(isSel){
+      const {eta,conf}=mlETA(0.5,bus.speed||20,1)
+      m.bindPopup(`
+        <div>
+          <b style="font-size:13px">${bus.name}</b>
+          <div style="color:${color};font-family:Space Mono,monospace;font-size:10px;margin-top:2px">${route?.name}</div>
+          <hr style="border:none;border-top:1px solid var(--border);margin:7px 0"/>
+          <div style="margin-bottom:3px">Status: <b>${bus.status==='at_stop'?'🟡 At Stop':'🟢 Moving'}</b></div>
+          <div style="margin-bottom:3px">Speed: <b>${Math.round(bus.speed||0)} km/h</b></div>
+          <div style="margin-bottom:3px">Network: <b>${networkMode.toUpperCase()}</b></div>
+          <div style="font-size:10px;color:#6b7a99;font-family:Space Mono,monospace;margin-top:5px">ML Model: GBR · Conf ${conf}%</div>
+        </div>`,
+        {className:'dp'}
+      )
+    }
+  })
+
+  // Auto-follow selected bus
+  if(autoFollow && selectedBus && buses[selectedBus]){
+    const b=buses[selectedBus]
+    map.panTo([b.lat,b.lng],{animate:true,duration:.4})
+  }
+}
+
+// ── RAF interpolation ──
+let lastMarkerAnim=0
+function animateMarkers(now){
+  if(now-lastMarkerAnim>14){
+    lastMarkerAnim=now
+    Object.keys(busMarkers).forEach(bid=>{
+      const as=animState[bid];if(!as||as.t>=1)return
+      const raw=Math.min((now-as.start)/1000,1)
+      as.t=easeInOut(raw)
+      busMarkers[bid].setLatLng([lerp(as.fromLat,as.toLat,as.t),lerp(as.fromLng,as.toLng,as.t)])
+    })
+  }
+  requestAnimationFrame(animateMarkers)
+}
+requestAnimationFrame(animateMarkers)
+
+function toggleTrail(){
+  showTrail=!showTrail
+  document.getElementById('chip-trail').textContent=showTrail?'ON':'OFF'
+  if(!showTrail)Object.values(trailLayers).forEach(ls=>ls.forEach(l=>{try{l.remove()}catch(e){}}))
+}
+function toggleFollow(){
+  autoFollow=!autoFollow
+  const chip=document.getElementById('follow-chip')
+  const lbl=document.getElementById('follow-label')
+  chip.textContent=autoFollow?'ON':'OFF'
+  lbl.style.color=autoFollow?'var(--green)':'var(--muted)'
+  document.getElementById('follow-chip').parentElement.classList.toggle('active-chip',autoFollow)
+  if(autoFollow&&selectedBus&&buses[selectedBus]){
+    map.panTo([buses[selectedBus].lat,buses[selectedBus].lng],{animate:true,duration:.6})
+  }
+}
+
+// ══════════════════════════════════════════════════════
+// 11. NETWORK SIMULATION
+// ══════════════════════════════════════════════════════
+const NET_CONFIG={
+  high:   {label:'Live · High Bandwidth',  color:'#22c55e',bw:92, rtt:14,   interval:'every 1s',     icon:'📶', tierName:'Full Quality Mode',    tierDesc:'1s interval · Full payload · All features on',    chipBW:'HIGH BW'},
+  medium: {label:'Live · 3G / Medium BW',  color:'#eab308',bw:45, rtt:680,  interval:'every 3s',     icon:'📉', tierName:'Reduced Quality Mode', tierDesc:'3s interval · Delta payload · Sparse GPS active',  chipBW:'MED BW'},
+  low:    {label:'Degraded · EDGE Network',color:'#f97316',bw:18, rtt:1800, interval:'every 10s',    icon:'⚠️', tierName:'Critical Mode (EDGE)', tierDesc:'10s interval · Coords only · ML confidence ↓',     chipBW:'LOW BW'},
+  offline:{label:'Offline · Signal Lost',  color:'#ef4444',bw:0,  rtt:null, interval:'PAUSED',       icon:'💤', tierName:'Store-and-Forward',    tierDesc:'Buffering all events · Will replay on reconnect',   chipBW:'OFFLINE'},
+}
+function setNetwork(mode){
+  const prev=networkMode;networkMode=mode
+  if(mode==='offline'&&prev!=='offline'){bufferCount=0;bufferEvents=[]}
+  if(mode!=='offline'&&prev==='offline')replayBuffer()
+  const c=NET_CONFIG[mode]
+
+  const dot=document.getElementById('net-dot')
+  dot.style.background=c.color;dot.style.boxShadow=`0 0 7px ${c.color}`
+  dot.style.animation=mode!=='high'?'blink 1.1s ease infinite':'none'
+  document.getElementById('net-dot-badge').style.background=c.color
+  document.getElementById('net-dot-badge').style.boxShadow=`0 0 6px ${c.color}`
+  document.getElementById('net-label').style.color=c.color
+  document.getElementById('net-label').textContent=c.label
+  document.getElementById('rtt-chip').textContent=c.rtt?`RTT ${c.rtt}ms`:'No signal'
+  document.getElementById('bw-fill').style.width=c.bw+'%'
+  document.getElementById('bw-fill').style.background=c.color
+  document.getElementById('bw-text').textContent=c.bw+'% BW'
+  document.getElementById('tier-box').style.background=`${c.color}10`
+  document.getElementById('tier-box').style.borderColor=`${c.color}30`
+  document.getElementById('tier-icon').textContent=c.icon
+  document.getElementById('tier-name').style.color=c.color
+  document.getElementById('tier-name').textContent=c.tierName
+  document.getElementById('tier-desc').textContent=c.tierDesc
+  ;['high','medium','low','offline'].forEach(m=>{document.getElementById('btn-'+m).classList.toggle('active',m===mode)})
+  const chip=document.getElementById('chip-dot')
+  chip.style.background=c.color;chip.style.boxShadow=`0 0 6px ${c.color}`
+  document.getElementById('chip-bw').style.color=c.color
+  document.getElementById('chip-bw').textContent=c.chipBW
+  document.getElementById('chip-rtt').textContent=c.rtt?c.rtt+'ms':'—'
+  document.getElementById('chip-interval').textContent=c.interval
+
+  document.getElementById('feat-adaptive-val').textContent=c.interval
+  document.getElementById('feat-adaptive-val').style.color=c.color
+  document.getElementById('feat-adaptive').style.borderColor=`${c.color}33`
+
+  const isSparse=mode==='low'||mode==='offline'
+  document.getElementById('sparse-box').style.display=isSparse?'block':'none'
+  document.getElementById('sparse-ping').textContent=mode==='low'?'10s interval':mode==='offline'?'15s interval':'1s interval'
+  const sparseVal=document.getElementById('feat-sparse-val')
+  sparseVal.textContent=isSparse?'SPARSE MODE':'NORMAL'
+  sparseVal.style.color=isSparse?c.color:'#22c55e'
+
+  const interpVal=document.getElementById('feat-interp-val')
+  interpVal.textContent=mode==='offline'?'PAUSED':'ACTIVE'
+  interpVal.style.color=mode==='offline'?'#6b7a99':'#22c55e'
+
+  const mlConf=mode==='high'?'GBR ✓ ~94%':mode==='medium'?'GBR ~83%':mode==='low'?'GBR ~62%':'GBR ~45%'
+  document.getElementById('feat-ml-val').textContent=mlConf
+  document.getElementById('feat-ml-val').style.color=mode==='high'?'#22c55e':mode==='medium'?'#eab308':'#f97316'
+  document.getElementById('chip-ml').textContent=mlConf
+
+  const bufBox=document.getElementById('buffer-box')
+  const featBuf=document.getElementById('feat-buffer')
+  if(mode==='offline'){
+    bufBox.style.display='block'
+    featBuf.style.borderColor='#ef444433';featBuf.style.background='#ef444408'
+    document.getElementById('feat-buffer-val').textContent='BUFFERING'
+    document.getElementById('feat-buffer-val').style.color='#ef4444'
+    featBuf.querySelector('.feat-dot').style.background='#ef4444'
+  } else {
+    bufBox.style.display='none'
+    document.getElementById('feat-buffer-val').textContent='STANDBY'
+    document.getElementById('feat-buffer-val').style.color='#6b7a99'
+    featBuf.querySelector('.feat-dot').style.background='#6b7a99'
+    featBuf.style.borderColor='var(--border)';featBuf.style.background='var(--surface2)'
+  }
+}
+function replayBuffer(){
+  if(!bufferEvents.length)return
+  document.getElementById('net-label').textContent='Reconnecting…'
+  setTimeout(()=>{
+    const last=bufferEvents[bufferEvents.length-1]
+    if(last?.buses)last.buses.forEach(b=>{if(buses[b.id]){buses[b.id].lat=b.lat;buses[b.id].lng=b.lng}})
+    const stored=bufferEvents.length;bufferEvents=[];bufferCount=0
+    setNetwork('high')
+    document.getElementById('net-label').textContent=`Replayed ${stored} buffered events`
+    setTimeout(()=>document.getElementById('net-label').textContent=NET_CONFIG.high.label,2500)
+  },1400)
+}
+
+// ══════════════════════════════════════════════════════
+// 12. SIDEBAR RENDER
+// ══════════════════════════════════════════════════════
+function buildRouteFilter(){
+  const el=document.getElementById('route-filter')
+  let h=`<button class="route-btn" style="${!selectedRoute?'border-color:var(--accent);color:var(--accent);background:#4f8ef720':''}" onclick="filterRoute(null)">ALL</button>`
+  ROUTES.forEach(r=>{
+    const a=selectedRoute===r.id
+    h+=`<button class="route-btn" style="${a?`border-color:${r.color};color:${r.color};background:${r.color}20`:''}" onclick="filterRoute('${r.id}')">${r.name}</button>`
+  })
+  el.innerHTML=h
+}
+
+function buildBusList(){
+  if(searchQuery) return
+  const el=document.getElementById('bus-list')
+  let list=Object.values(buses).filter(b=>!selectedRoute||b.route_id===selectedRoute)
+
+  // Sort by distance from user if located
+  let nearestBusId=null
+  if(userLocation){
+    list=list.map(b=>({...b,_dist:haversine(userLocation.lat,userLocation.lng,b.lat,b.lng)}))
+      .sort((a,bx)=>a._dist-bx._dist)
+    if(list.length)nearestBusId=list[0].id
+  }
+
+  if(!list.length){el.innerHTML=`<div style="padding:20px 0;text-align:center;color:var(--muted);font-family:var(--mono);font-size:10px">No buses on this route</div>`;return}
+
+  el.innerHTML=list.map(bus=>{
+    const route=routeMap[bus.route_id],color=route?.color||'#4f8ef7'
+    const isSel=bus.id===selectedBus
+    const isNearest=bus.id===nearestBusId
+    const badge=bus.status==='at_stop'
+      ?{l:'AT STOP',c:'#eab308',bg:'#eab30822'}
+      :{l:'MOVING', c:'#22c55e',bg:'#22c55e22'}
+
+    let stopsHtml=''
+    let countdownHtml=''
+    if(isSel&&route){
+      stopsHtml=route.stops.map(stop=>{
+        const isCur=bus.at_stop===stop.id
+        const dist=haversine(bus.lat,bus.lng,stop.lat,stop.lng)
+        const {eta,conf}=mlETA(Math.max(dist,.05),Math.max(bus.speed,5),route.stops.indexOf(stop))
+        const etaColor=eta<2?'#22c55e':eta<5?'#eab308':'#6b7a99'
+        return `<div class="stop-row" style="${isCur?`background:${color}15;border-color:${color}33`:''}">
+          <div class="stop-dot" style="background:${isCur?color:'var(--border)'}"></div>
+          <span class="stop-name">${stop.name}</span>
+          ${isCur
+            ?`<span style="font-family:var(--mono);font-size:9px;color:${color};font-weight:700">HERE</span>`
+            :`<span>
+                <span class="stop-eta-val" style="color:${etaColor}">${eta<1?'<1':Math.round(eta)}m</span>
+                <span class="eta-conf"> ${conf}%</span>
+              </span>`}
+        </div>`
+      }).join('')
+
+      // Countdown timer for next stop
+      const cs=countdownState[bus.id]
+      if(cs&&bus.status==='moving'){
+        const secs=cs.secs
+        const isUrgent=secs<60
+        const isArriving=secs<30
+        countdownHtml=`
+          <div class="countdown-box">
+            <div>
+              <div style="font-size:11px;font-weight:600;margin-bottom:2px">Next: ${cs.stopName}</div>
+              <div class="expand-label" style="margin:0">ARRIVING IN</div>
+            </div>
+            <div class="countdown-time ${isArriving?'arriving':isUrgent?'urgent':''}" id="cd-${bus.id}">${fmtCountdown(secs)}</div>
+          </div>`
+      } else if(bus.status==='at_stop'){
+        countdownHtml=`<div class="countdown-box"><div style="font-size:11px;flex:1">🚏 Stopped at <b style="color:${color}">${bus.at_stop}</b></div><div style="font-family:var(--mono);font-size:12px;color:var(--yellow);font-weight:700">DWELL</div></div>`
+      }
+    }
+
+    const distBadge = userLocation && bus._dist!=null
+      ? `<div class="dist-from-user" style="color:${bus._dist<0.3?'#22c55e':bus._dist<1?'#eab308':'#6b7a99'}">${fmtDist(bus._dist)}</div>`
+      : ''
+
+    return `<div class="bus-card${isSel?' selected':''}${isNearest?' nearest-bus':''}" onclick="selectBus('${bus.id}')"
+      style="border-color:${isSel?color+'55':'var(--border)'};animation:fadein .2s ease">
+      <div class="bus-header">
+        <div class="bus-icon-wrap" style="background:${color}20;border:1px solid ${color}44">${networkMode==='offline'?'💤':'🚌'}</div>
+        <div style="flex:1;min-width:0">
+          <div class="bus-name-row">${bus.name}<span class="status-badge" style="background:${badge.bg};color:${badge.c}">${badge.l}</span></div>
+          <div class="bus-route-tag" style="color:${color}">${route?.name||bus.route_id}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div class="speed-num">${Math.round(bus.speed||0)}</div>
+          <div class="speed-unit">km/h</div>
+          ${distBadge}
+        </div>
+      </div>
+      ${isSel?`<div class="expand-body">
+        ${countdownHtml}
+        <div class="expand-label" style="margin-top:8px">▸ ML ETA TO EACH STOP</div>
+        <div>${stopsHtml}</div>
+        <div style="margin-top:6px;padding:5px 8px;background:#4f8ef710;border:1px solid #4f8ef720;border-radius:5px">
+          <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:2px">ML MODEL INFO</div>
+          <div style="font-size:9px;color:var(--text)">Gradient Boosting Regressor · Network: <b style="color:${NET_CONFIG[networkMode]?.color||'#22c55e'}">${networkMode.toUpperCase()}</b></div>
+        </div>
+        <div class="coord-row">
+          <span>LAT ${bus.lat?.toFixed(5)}</span><span>LNG ${bus.lng?.toFixed(5)}</span><span>HDG ${Math.round(bus.heading||0)}°</span>
+        </div>
+      </div>`:''}
+    </div>`
+  }).join('')
+}
+
+// ══════════════════════════════════════════════════════
+// 13. INTERACTIONS
+// ══════════════════════════════════════════════════════
+function selectBus(id){
+  selectedBus=selectedBus===id?null:id
+  if(selectedBus&&buses[selectedBus]){
+    map.panTo([buses[selectedBus].lat,buses[selectedBus].lng],{animate:true,duration:.6})
+    if(window.innerWidth<=680)closeSidebar()
+  }
+  buildBusList();updateMarkers()
+}
+function filterRoute(id){
+  selectedRoute=id;buildRouteFilter();buildBusList();drawRoutes()
+}
+
+// ══════════════════════════════════════════════════════
+// 14. BUFFER UI
+// ══════════════════════════════════════════════════════
+function updateBufferUI(){
+  if(networkMode!=='offline')return
+  bufferCount++
+  const MAX=300,pct=Math.min(bufferCount/MAX*100,100)
+  document.getElementById('buffer-bar').style.width=pct+'%'
+  document.getElementById('buffer-count').textContent=`${Math.min(bufferCount,MAX)} events buffered`
+  document.getElementById('buffer-text').textContent=bufferCount>250?'⚠ Buffer nearly full':'Waiting to reconnect and replay…'
+  document.getElementById('feat-buffer-val').textContent=`${Math.min(bufferCount,MAX)} BUFFERED`
+}
+
+// ══════════════════════════════════════════════════════
+// 15. RENDER LOOP
+// ══════════════════════════════════════════════════════
+let lastRender=0
+function renderLoop(now){
+  if(now-lastRender>500){
+    lastRender=now
+    buildBusList()
+    updateMarkers()
+    updateBufferUI()
+    if(userLocation)updateUserPanel()
+    // Footer clock
+    const t=new Date()
+    document.getElementById('footer-time').textContent=t.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'})
+    document.getElementById('bus-count').textContent=`${Object.keys(buses).length} buses · ${Object.values(buses).filter(b=>b.status==='moving').length} moving`
+  }
+  requestAnimationFrame(renderLoop)
+}
+
+// ══════════════════════════════════════════════════════
+// 16. USER LIVE LOCATION
+// ══════════════════════════════════════════════════════
+function toggleLocate(){
+  locating ? stopLocate() : startLocate()
+}
+function startLocate(){
+  if(!navigator.geolocation){
+    showLocateError('Not supported');return
+  }
+  locating=true
+  const btn=document.getElementById('locate-btn')
+  btn.className='map-chip locate-btn locating'
+  btn.innerHTML='<span style="font-size:11px">⏳</span><span class="chip-label" style="color:var(--accent)">Locating…</span>'
+  watchId=navigator.geolocation.watchPosition(onLocationUpdate,onLocationError,{enableHighAccuracy:true,maximumAge:5000,timeout:12000})
+}
+function stopLocate(){
+  if(watchId!==null)navigator.geolocation.clearWatch(watchId)
+  locating=false;watchId=null;userLocation=null
+  if(userMarker){userMarker.remove();userMarker=null}
+  if(userAccCircle){userAccCircle.remove();userAccCircle=null}
+  const btn=document.getElementById('locate-btn')
+  btn.className='map-chip locate-btn'
+  btn.innerHTML='<span style="font-size:11px">📍</span><span class="chip-label">Locate Me</span>'
+  document.getElementById('acc-location').style.display='none'
+  buildBusList()
+}
+function showLocateError(msg){
+  locating=false
+  const btn=document.getElementById('locate-btn')
+  btn.className='map-chip locate-btn'
+  btn.innerHTML=`<span style="font-size:11px">❌</span><span class="chip-label" style="color:var(--red)">${msg}</span><span class="chip-val" style="cursor:pointer;color:var(--accent);text-decoration:underline" onclick="startLocate();event.stopPropagation()">Retry</span>`
+  setTimeout(()=>{
+    if(!locating)btn.innerHTML='<span style="font-size:11px">📍</span><span class="chip-label">Locate Me</span>'
+  },5000)
+}
+function onLocationUpdate(pos){
+  const{latitude:lat,longitude:lng,accuracy}=pos.coords
+  userLocation={lat,lng,accuracy}
+  if(!userMarker){
+    const icon=L.divIcon({
+      html:`<div style="position:relative;width:22px;height:22px">
+        <div style="position:absolute;inset:0;border-radius:50%;background:#4f8ef7;animation:user-pulse 2s ease-out infinite"></div>
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:12px;height:12px;border-radius:50%;background:#4f8ef7;border:2.5px solid white;box-shadow:0 0 10px #4f8ef799"></div>
+      </div>`,
+      className:'',iconSize:[22,22],iconAnchor:[11,11]
+    })
+    userMarker=L.marker([lat,lng],{icon,zIndexOffset:2000}).addTo(map)
+    userMarker.bindTooltip(`<b style="font-family:DM Sans,sans-serif;font-size:11px;color:#4f8ef7">📍 You are here</b><div style="font-size:9px;color:#6b7a99;font-family:Space Mono,monospace">Live GPS · ±${Math.round(accuracy)}m</div>`,{direction:'top',offset:[0,-8]})
+    map.panTo([lat,lng],{animate:true,duration:1.2})
+  } else {
+    userMarker.setLatLng([lat,lng])
+  }
+  if(userAccCircle){
+    userAccCircle.setLatLng([lat,lng]).setRadius(accuracy)
+  } else {
+    userAccCircle=L.circle([lat,lng],{radius:accuracy,color:'#4f8ef7',fillColor:'#4f8ef7',fillOpacity:.06,weight:1.5,dashArray:'5 5'}).addTo(map)
+  }
+  const btn=document.getElementById('locate-btn')
+  btn.className='map-chip locate-btn located'
+  btn.innerHTML=`<span style="font-size:11px">🔵</span><span class="chip-label" style="color:#22c55e">Live GPS</span><span class="chip-val">±${Math.round(accuracy)}m</span>`
+  document.getElementById('acc-location').style.display='block'
+  document.getElementById('user-acc-text').textContent=`±${Math.round(accuracy)}m`
+  updateUserPanel()
+  buildBusList()
+}
+function onLocationError(err){
+  const msg=err.code===1?'Permission denied':err.code===2?'Position unavailable':'GPS timeout'
+  showLocateError(msg)
+}
+function updateUserPanel(){
+  if(!userLocation)return
+  const{lat,lng}=userLocation
+  const ranked=allStopsFlat
+    .map(s=>({...s,dist:haversine(lat,lng,s.lat,s.lng)}))
+    .sort((a,b)=>a.dist-b.dist).slice(0,3)
+  const nearestBus=Object.values(buses)
+    .map(b=>({...b,dist:haversine(lat,lng,b.lat,b.lng)}))
+    .sort((a,b)=>a.dist-b.dist)[0]
+  const dc=d=>d<0.3?'#22c55e':d<1?'#eab308':'#6b7a99'
+  // Walking time estimate (~4.5 km/h)
+  const walkMin=d=>d<0.05?'<1 min walk':Math.round(d/4.5*60)+' min walk'
+
+  document.getElementById('user-panel-content').innerHTML=`
+    <div style="margin-bottom:8px">
+      <div class="expand-label">▸ NEAREST STOPS</div>
+      ${ranked.map((s,i)=>`
+        <div class="stop-row" onclick="panToStop(${s.lat},${s.lng})" style="cursor:pointer;${i===0?`background:${s.routeColor}15;border-color:${s.routeColor}33`:''}">
+          <div class="stop-dot" style="background:${s.routeColor}"></div>
+          <span class="stop-name">${s.name}</span>
+          <span style="text-align:right">
+            <span class="stop-dist-badge" style="color:${dc(s.dist)};display:block">${fmtDist(s.dist)}</span>
+            <span style="font-size:8px;color:var(--muted);font-family:var(--mono)">${walkMin(s.dist)}</span>
+          </span>
+        </div>`).join('')}
+    </div>
+    ${nearestBus?`
+    <div style="padding:7px 9px;background:#4f8ef712;border:1px solid #4f8ef730;border-radius:7px;display:flex;align-items:center;gap:8px;cursor:pointer" onclick="selectBus('${nearestBus.id}')">
+      <span style="font-size:16px">🚌</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${nearestBus.name}</div>
+        <div style="font-family:var(--mono);font-size:9px;color:${routeMap[nearestBus.route_id]?.color||'#4f8ef7'}">${routeMap[nearestBus.route_id]?.name||''}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div style="font-family:var(--mono);font-size:11px;font-weight:700;color:${dc(nearestBus.dist)}">${fmtDist(nearestBus.dist)}</div>
+        <div style="font-family:var(--mono);font-size:8px;color:var(--muted)">${Math.round(nearestBus.speed||0)} km/h</div>
+      </div>
+    </div>`:''}
+    <div style="margin-top:6px;font-family:var(--mono);font-size:8px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap">
+      <span>LAT ${lat.toFixed(5)}</span><span>LNG ${lng.toFixed(5)}</span>
+    </div>`
+
+  // Ensure accordion is expanded after content update
+  const body=document.getElementById('body-location')
+  if(body&&!accCollapsed['location'])body.style.maxHeight=body.scrollHeight+'px'
+}
+
+// ══════════════════════════════════════════════════════
+// BOOT
+// ══════════════════════════════════════════════════════
+initBuses()
+drawRoutes()
+buildRouteFilter()
+buildBusList()
+setNetwork('high')
+simLoop()
+requestAnimationFrame(renderLoop)
+setTimeout(initAccordions, 50)
+</script>
+</body>
+</html>
